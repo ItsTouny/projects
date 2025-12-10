@@ -8,8 +8,13 @@ This project is a product price crawler that extracts product information (name,
 
 1. Create virtualenv and install requirements:
 ```bash
-.venv\Scripts\activate
-py -m pip install -r requirements.txt
+py -m venv venv
+```
+```bash
+.\venv\Scripts\activate
+```
+```bash
+python -m pip install -r requirements.txt
 ```
 
 2. Edit `config/config.json` with the stores and URLs you want to crawl.
