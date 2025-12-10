@@ -1,0 +1,31 @@
+{
+  "stores": [
+    {
+      "name": "alza",
+      "type": "alza",
+      "urls": [
+        "https://www.alza.cz/iphone-17-pro-256gb-stribrna-d13078788.htm",
+        "https://www.alza.cz/samsung-galaxy-s25-12gb-256gb-blueblack-d12981191.htm"
+      ]
+    },
+    {
+      "name": "mall",
+      "type": "mall",
+      "urls": [
+        "https://www.mall.cz/mobilni-telefony/apple-iphone-14-pro",
+        "https://www.mall.cz/mobilni-telefony/samsung-galaxy-s23"
+      ]
+    },
+    {
+      "name": "datart",
+      "type": "datart",
+      "urls": [
+        "https://www.datart.cz/product/sample-product-1",
+        "https://www.datart.cz/product/sample-product-2"
+      ]
+    }
+  ],
+  "num_processes": 6,
+  "timeout": 5,
+  "retry_count": 2
+}

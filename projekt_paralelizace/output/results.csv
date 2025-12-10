@@ -1,0 +1,7 @@
+url,name,price,availability,image,store,error
+https://www.datart.cz/product/sample-product-2,,,,,datart,HTTP 404
+https://www.mall.cz/mobilni-telefony/samsung-galaxy-s23,,,,,mall,HTTP 429
+https://www.datart.cz/product/sample-product-1,,,,,datart,HTTP 404
+https://www.mall.cz/mobilni-telefony/apple-iphone-14-pro,,,,,mall,HTTP 429
+https://www.alza.cz/iphone-17-pro-256gb-stribrna-d13078788.htm,iPhone 17 Pro 256GB stříbrná,"32 990,-",Skladem > 5 ks,https://image.alza.cz/products/RI055b3/RI055b3.jpg?width=500&height=500,alza,
+https://www.alza.cz/samsung-galaxy-s25-12gb-256gb-blueblack-d12981191.htm,Samsung Galaxy S25 12GB/256GB Blueblack,"19 990,-",Skladem > 5 ks,https://image.alza.cz/products/SAMO0269c5/SAMO0269c5.jpg?width=500&height=500,alza,
