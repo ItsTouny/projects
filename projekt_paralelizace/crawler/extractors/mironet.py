@@ -2,39 +2,49 @@ import json
 import re
 from bs4 import BeautifulSoup
 
-def extract_mironet(_html: str, url: str):
-    """Extract product info from Mironet HTML using JSON-LD with HTML fallback."""
+def extract_mironet(_html: str, url: str) -> dict:
+    """
+    Extracts product information (name, price, availability, image) from Mironet.cz HTML.
+
+    This function prioritizes extracting structured data (JSON-LD) for reliability.
+    It returns a dictionary with normalized product details.
+
+    Args:
+        _html (str): The raw HTML content of the product page.
+        url (str): The URL of the product page.
+
+    Returns:
+        dict: A dictionary containing the extracted product details:
+            - url (str): The original product URL.
+            - name (str): The product name.
+            - price (str): The product price (including ',-' suffix) or 'N/A'.
+            - availability (str): Stock status (e.g., 'Skladem', 'Nedostupné').
+            - image (str): URL of the product image.
+            - store (str): Fixed string 'mironet'.
+    """
     soup = BeautifulSoup(_html, "html.parser")
 
-    # 1. Inicializace proměnných (defaultní hodnoty)
     name = "Unknown"
     price = "N/A"
     availability = "Neznámá"
     image_url = ""
 
-    # 2. Extrakce Názvu (HTML H1 je spolehlivé)
     h1_elem = soup.find("h1")
     if h1_elem:
         name = h1_elem.get_text(strip=True)
 
-    # ---------------------------------------------------------
-    # 3. PRIMÁRNÍ METODA: JSON-LD (Strukturovaná data)
-    # ---------------------------------------------------------
     json_scripts = soup.find_all("script", type="application/ld+json")
-    json_success = False
 
     for script in json_scripts:
         try:
             data = json.loads(script.get_text())
 
-            # Hledáme objekt typu Product
             if isinstance(data, list):
                 product_data = next((item for item in data if item.get("@type") == "Product"), None)
             else:
                 product_data = data if data.get("@type") == "Product" else None
 
             if product_data:
-                # -- Obrázek z JSONu (bývá nejkvalitnější) --
                 if "image" in product_data:
                     img_data = product_data["image"]
                     if isinstance(img_data, list):
@@ -42,18 +52,14 @@ def extract_mironet(_html: str, url: str):
                     elif isinstance(img_data, str):
                         image_url = img_data
 
-                # -- Nabídky (Cena a Dostupnost) --
                 if "offers" in product_data:
                     offers = product_data["offers"]
-                    # Pokud je více nabídek, vezmeme první
                     if isinstance(offers, list):
                         offers = offers[0]
 
-                    # Cena
                     if "price" in offers:
-                        price = str(offers["price"]) + ",-" # Převedeme na string
+                        price = str(offers["price"]) + ",-"
 
-                    # Dostupnost (URL schema.org)
                     avail_url = offers.get("availability", "")
                     if "InStock" in avail_url:
                         availability = "Skladem"
@@ -62,11 +68,9 @@ def extract_mironet(_html: str, url: str):
                     elif "PreOrder" in avail_url:
                         availability = "Předobjednávka"
 
-                    json_success = True
-                    break # Máme data, končíme cyklus
+                    break
         except:
             continue
-
 
     return {
         "url": url,

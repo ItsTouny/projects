@@ -1,33 +1,75 @@
-"""Datart extractor: datart.cz product pages extractor.
-
-This extractor uses common Datart CSS selectors but keeps fallbacks for robustness.
-Selectors may change over time; adjust the extractor if the site HTML changes.
-"""
+import json
 from bs4 import BeautifulSoup
 
-def extract_datart(html: str, url: str):
-    """Extract product info from Datart product HTML."""
+def extract_datart(html: str, url: str) -> dict:
+    """
+    Extracts product information (name, price, availability, image) from Datart.cz HTML.
+
+    This function prioritizes extracting structured data (JSON-LD) for reliability but
+    includes basic HTML parsing for the product name.
+
+    Args:
+        html (str): The raw HTML content of the product page.
+        url (str): The URL of the product page.
+
+    Returns:
+        dict: A dictionary containing the extracted product details:
+            - url (str): The original product URL.
+            - name (str): The product name.
+            - price (str): The product price (or 'N/A' if not found).
+            - availability (str): Stock status (e.g., 'Skladem', 'Nedostupné').
+            - image (str): URL of the product image.
+            - store (str): Fixed string 'datart'.
+    """
     soup = BeautifulSoup(html, "html.parser")
 
-    # Name: usually in <h1> with class containing 'product-title' or itemprop='name'
-    name_elem = soup.find("h1", class_=lambda c: c and 'product' in c and 'title' in c) or soup.find("h1") or soup.find(attrs={"itemprop": "name"})
-    name = name_elem.get_text(strip=True) if name_elem else "Unknown"
+    name = "Unknown"
+    price = "N/A"
+    availability = "Neznámá"
+    image_url = ""
 
-    # Price: look for common price classes or data-price attributes
-    price_elem = soup.find(lambda tag: tag.name in ['span','div'] and tag.get('class') and any('price' in c for c in tag.get('class')))                  or soup.find(attrs={'data-price': True})
-    price = price_elem.get_text(strip=True) if price_elem else "N/A"
+    name_elem = soup.find("h1")
+    if name_elem:
+        name = name_elem.get_text(strip=True)
 
-    # Availability: try common availability labels
-    avail_elem = soup.find(lambda tag: tag.get('class') and any('availability' in c or 'stock' in c for c in tag.get('class')))                  or soup.find(text=lambda t: t and ('Skladem' in t or 'Na objednávku' in t or 'Vyprodáno' in t))
-    availability = avail_elem.get_text(strip=True) if hasattr(avail_elem, 'get_text') else (avail_elem.strip() if avail_elem else 'Unknown')
+    json_scripts = soup.find_all("script", type="application/ld+json")
 
-    # Image: try meta og:image or common img selectors
-    img_meta = soup.find('meta', property='og:image') or soup.find('meta', attrs={'name':'og:image'})
-    if img_meta and img_meta.get('content'):
-        image_url = img_meta['content']
-    else:
-        img_elem = soup.find('img', class_=lambda c: c and ('product' in c or 'image' in c)) or soup.find('img')
-        image_url = img_elem['src'] if img_elem and img_elem.get('src') else ""
+    for script in json_scripts:
+        try:
+            data = json.loads(script.get_text())
+
+            if isinstance(data, list):
+                product_data = next((item for item in data if item.get("@type") == "Product"), None)
+            else:
+                product_data = data if data.get("@type") == "Product" else None
+
+            if product_data:
+                if "image" in product_data:
+                    img_data = product_data["image"]
+                    if isinstance(img_data, list):
+                        image_url = img_data[0]
+                    elif isinstance(img_data, str):
+                        image_url = img_data
+
+                if "offers" in product_data:
+                    offers = product_data["offers"]
+                    if isinstance(offers, list):
+                        offers = offers[0]
+
+                    if "price" in offers:
+                        price = str(offers["price"])
+
+                    avail_url = offers.get("availability", "")
+                    if "InStock" in avail_url:
+                        availability = "Skladem"
+                    elif "OutOfStock" in avail_url or "Discontinued" in avail_url:
+                        availability = "Nedostupné"
+                    elif "PreOrder" in avail_url:
+                        availability = "Předobjednávka"
+
+                    break
+        except:
+            continue
 
     return {
         "url": url,
