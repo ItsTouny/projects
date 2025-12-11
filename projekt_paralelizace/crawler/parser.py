@@ -1,11 +1,11 @@
 """Parser that selects the correct extractor per store type."""
 from .extractors.alza import extract_alza
-from .extractors.mall import extract_mall
+from .extractors.mironet import extract_mironet
 from .extractors.datart import extract_datart
 
 EXTRACTOR_MAP = {
     "alza": extract_alza,
-    "mall": extract_mall,
+    "mironet": extract_mironet,
     "datart": extract_datart
 }
 

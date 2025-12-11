@@ -43,7 +43,7 @@ class Orchestrator:
         url = job['url']
         d = Downloader(timeout=self.timeout)
         html, err = d.fetch(url)
-
+        print(type(html))
         row = {
             'url': url,
             'name': None,
@@ -83,7 +83,6 @@ class Orchestrator:
 
         start = time.time()
         self.logger.info('Starting crawl: %d jobs', len(jobs))
-
         with multiprocessing.Pool(processes=self.num_processes) as pool:
             pool.map(self._crawl_one, jobs)
 
