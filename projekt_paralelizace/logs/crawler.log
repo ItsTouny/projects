@@ -218,3 +218,8 @@
 2025-12-11 19:43:04,921 INFO Finished crawl: 4 products in 3.65s
 2025-12-11 19:44:11,647 INFO Starting crawl: 4 jobs
 2025-12-11 19:44:15,148 INFO Finished crawl: 4 products in 3.50s
+2025-12-11 19:47:43,866 INFO Starting crawl: 4 jobs with 6 processes
+2025-12-11 19:49:31,233 INFO Starting crawl: 4 jobs
+2025-12-11 19:49:36,156 INFO Finished crawl: 4 products in 4.92s
+2025-12-11 19:50:15,211 INFO Starting crawl: 4 jobs
+2025-12-11 19:50:19,109 INFO Finished crawl: 4 products in 3.90s

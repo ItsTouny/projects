@@ -6,10 +6,23 @@ from .downloader import Downloader
 from .parser import parse_product
 from .writer import ensure_dir
 
+
 class Orchestrator:
-    """Main orchestration class for running the crawler."""
+    """
+    Main orchestration class for running the crawler.
+
+    It manages the configuration, logging, worker process pool, and synchronizes
+    writing results to the output CSV file.
+    """
 
     def __init__(self, raw_config: Dict):
+        """
+        Initializes the Orchestrator with the given configuration.
+
+        Args:
+            raw_config (Dict): The configuration dictionary containing settings
+                               for stores, timeouts, and output directories.
+        """
         self.raw_config = raw_config
         self.config = raw_config
         self.num_processes = self.config.get('num_processes', 4)
@@ -20,7 +33,7 @@ class Orchestrator:
         ensure_dir(self.logs_dir)
 
         self.csv_path = os.path.join(self.output_dir, "results.csv")
-        self.csv_header = ["url","name","price","availability","image","store","error"]
+        self.csv_header = ["url", "name", "price", "availability", "image", "store", "error"]
         if os.path.exists(self.csv_path):
             os.remove(self.csv_path)
             with open(self.csv_path, "w", newline="", encoding="utf-8") as f:
@@ -38,12 +51,21 @@ class Orchestrator:
         self.lock = manager.Lock()
 
     def _crawl_one(self, job: Dict):
-        """Worker: download HTML and run appropriate extractor; zapisuje přímo do CSV."""
+        """
+        Worker method used by the multiprocessing pool.
+
+        It downloads the HTML for a single job, parses the product data,
+        and safely writes the result (or error) to the shared CSV file
+        using a lock.
+
+        Args:
+            job (Dict): A dictionary containing the 'url' and store 'type'.
+        """
         store_type = job['type']
         url = job['url']
         d = Downloader(timeout=self.timeout)
         html, err = d.fetch(url)
-        print(type(html))
+
         row = {
             'url': url,
             'name': None,
@@ -76,6 +98,10 @@ class Orchestrator:
                 ])
 
     def run(self):
+        """
+        Prepares the jobs from configuration and executes the crawling process
+        using a parallel process pool.
+        """
         jobs = []
         for store in self.config.get('stores', []):
             for url in store.get('urls', []):

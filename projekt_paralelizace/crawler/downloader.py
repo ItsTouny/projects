@@ -5,7 +5,6 @@ import tls_client
 import re
 from urllib.parse import urlparse
 
-# --- KONFIGURACE USER AGENTŮ ---
 USER_AGENTS = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -14,14 +13,23 @@ USER_AGENTS = [
 
 
 class Downloader:
-    """Universal downloader for Alza, Datart, CZC."""
+    """
+    Universal downloader for extracting HTML content from various e-commerce sites (Alza, Datart, CZC, etc.).
+
+    This class handles TLS fingerprinting, session management, cookie warm-up, and header randomization
+    to mimic a real browser and bypass basic anti-bot protections.
+    """
 
     def __init__(self, timeout: int = 15):
+        """
+        Initializes the Downloader with a specific timeout.
+
+        Args:
+            timeout (int): The timeout for HTTP requests in seconds. Defaults to 15.
+        """
         self.timeout = timeout
-        # Používáme stabilní profil Chrome 124
         self.client_identifier = "chrome_124"
         self.session = self._new_session()
-        # Služba pro sledování, kde už máme cookies
         self.cookies_warmed_up = set()
 
     def _new_session(self) -> tls_client.Session:
@@ -31,11 +39,9 @@ class Downloader:
         )
 
     def _get_headers(self, url: str) -> dict:
-        """Generuje hlavičky specifické pro danou doménu (Alza/Datart/CZC)."""
         parsed = urlparse(url)
         domain = parsed.netloc
 
-        # Základní hlavičky (Chrome style)
         h = {
             "authority": domain,
             "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
@@ -53,17 +59,12 @@ class Downloader:
             "user-agent": random.choice(USER_AGENTS)
         }
 
-        # --- SPECIFIKA E-SHOPŮ ---
-
-        # Datart: Kriticky vyžaduje Referer, jinak vrací chyby
         if "datart" in domain:
             h["referer"] = "https://www.seznam.cz/"
 
-        # CZC: Má rádo Google referer a same-site fetch
         if "czc" in domain:
             h["referer"] = "https://www.google.com/"
 
-        # Pokud už jsme na doméně byli (máme cookies), upravíme fetch-site
         if domain in self.cookies_warmed_up:
             h["sec-fetch-site"] = "same-origin"
             h["referer"] = f"https://{domain}/"
@@ -71,15 +72,12 @@ class Downloader:
         return h
 
     def _warm_up(self, url: str):
-        """Navštíví homepage pro nastavení cookies (Anti-bot ochrana)."""
         domain = urlparse(url).netloc
 
-        # Pokud už jsme tu byli, nezatěžujeme server zbytečně
         if domain in self.cookies_warmed_up:
             return
 
         try:
-            # Jdeme na homepage
             home_url = f"https://{domain}/"
             self.session.get(
                 home_url,
@@ -87,21 +85,30 @@ class Downloader:
                 timeout_seconds=10
             )
             self.cookies_warmed_up.add(domain)
-            # Krátká pauza, aby to vypadalo, že uživatel hledá produkt
             time.sleep(random.uniform(1.0, 2.5))
         except:
-            # Ignorujeme chyby při warm-up, zkusíme to i tak
             pass
 
     def fetch(self, url: str) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Fetches the HTML content of the given URL.
+
+        This method performs a 'warm-up' request to the domain's homepage to establish cookies
+        before requesting the specific URL. It handles HTTP errors and basic captcha detection.
+
+        Args:
+            url (str): The target URL to download.
+
+        Returns:
+            Tuple[Optional[str], Optional[str]]: A tuple containing:
+                - The HTML content (str) if successful, otherwise None.
+                - An error message (str) if failed, otherwise None.
+        """
         try:
-            # 1. Warm-up (získá cookies z homepage)
             self._warm_up(url)
 
             headers = self._get_headers(url)
 
-            # 2. Stažení produktu
-            # Používáme timeout_seconds (tls_client specifikum)
             response = self.session.get(
                 url,
                 headers=headers,
@@ -109,7 +116,6 @@ class Downloader:
                 timeout_seconds=self.timeout
             )
 
-            # 3. Kontrola chybových stavů
             if response.status_code == 403:
                 return None, f"HTTP 403 Forbidden (Anti-bot block) - {urlparse(url).netloc}"
 
@@ -119,7 +125,6 @@ class Downloader:
             if not (200 <= response.status_code < 300):
                 return None, f"HTTP {response.status_code}"
 
-            # 4. Kontrola Captcha (Alza/CZC někdy vrací 200 OK ale s captchou)
             html_lower = response.text.lower()
             if ("captcha" in html_lower or "robot" in html_lower) and len(response.text) < 10000:
                 return None, "Captcha detected in content"

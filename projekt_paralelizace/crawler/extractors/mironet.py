@@ -1,5 +1,4 @@
 import json
-import re
 from bs4 import BeautifulSoup
 
 def extract_mironet(_html: str, url: str) -> dict:

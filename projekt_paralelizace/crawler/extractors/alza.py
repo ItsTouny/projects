@@ -65,7 +65,7 @@ def extract_alza(_html: str, url: str) -> dict:
                         offers = offers[0]
 
                     if "price" in offers:
-                        price = str(offers["price"])
+                        price = str(offers["price"])+",-"
 
                     avail_url = offers.get("availability", "")
                     if "InStock" in avail_url:
