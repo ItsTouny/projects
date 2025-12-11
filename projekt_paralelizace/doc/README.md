@@ -45,22 +45,32 @@ The crawler is driven by a configuration file located at `config/config.json`. Y
 **Example `config.json`:**
 ```json
 {
-  "num_processes": 4,
-  "timeout": 15,
-  "output_dir": "output",
-  "logs_dir": "logs",
   "stores": [
     {
+      "name": "alza",
       "type": "alza",
       "urls": [
-        "[https://www.alza.cz/iphone-15-pro-128gb-cerny-titan-d7899797.htm](https://www.alza.cz/iphone-15-pro-128gb-cerny-titan-d7899797.htm)"
+        "https://www.alza.cz/iphone-17-pro-256gb-stribrna-d13078788.htm",
+        "https://www.alza.cz/samsung-galaxy-s25-12gb-256gb-blueblack-d12981191.htm"
       ]
     },
     {
+      "name": "mironet",
       "type": "mironet",
       "urls": [
-        "[https://www.mironet.cz/apple-iphone-15-128gb-cerna-61-oled-super-retina-xdr-2556x1179-a16-bionic-6gb-ram-128gb+dp597255/](https://www.mironet.cz/apple-iphone-15-128gb-cerna-61-oled-super-retina-xdr-2556x1179-a16-bionic-6gb-ram-128gb+dp597255/)"
+        "https://www.mironet.cz/apple-iphone-17-pro-512gb-stribrna-63-12gb-512gb-ios26+dp773763/"
+      ]
+    },
+    {
+      "name": "datart",
+      "type": "datart",
+      "urls": [
+        "https://www.datart.cz/mobilni-telefon-apple-iphone-17-pro-256gb-stribrny-mg8g4sx-a"
       ]
     }
-  ]
+  ],
+  "num_processes": 6,
+  "timeout": 5,
+  "retry_count": 2
 }
+```
