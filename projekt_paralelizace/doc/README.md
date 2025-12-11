@@ -24,8 +24,9 @@ A high-performance, concurrent product price crawler designed to extract real-ti
 
 2.  **Create and activate a virtual environment:**
     ```bash
-    py -m venv venv
     .\venv\Scripts\activate
+    cd ..
+    py -m venv ../venv
     ```
 
 3.  **Install dependencies:**
