@@ -13,7 +13,6 @@ from crawler.extractors.datart import extract_datart
 # ============================================================================
 
 def test_alza_json_ld_standard():
-    """Test standard extraction from JSON-LD."""
     html = """
     <html>
         <body>
@@ -41,7 +40,6 @@ def test_alza_json_ld_standard():
     assert res['image'] == 'https://img.alza.cz/foto.jpg'
 
 def test_alza_image_object_structure():
-    """Test specific Alza image structure (List of ImageObjects)."""
     html = """
     <html>
         <body>
@@ -62,11 +60,9 @@ def test_alza_image_object_structure():
     </html>
     """
     res = extract_alza(html, 'url')
-    # Musí vytáhnout URL zanořenou v objektu
     assert res['image'] == 'https://image.alza.cz/products/SAMO0269c5.jpg'
 
 def test_alza_missing_json():
-    """Test that it returns N/A when JSON is missing (No HTML fallback)."""
     html = """
     <html>
         <body>
@@ -87,7 +83,6 @@ def test_alza_missing_json():
 # ============================================================================
 
 def test_datart_json_list_format():
-    """Datart often wraps the Product object in a list."""
     html = """
     <html>
         <body>
@@ -114,7 +109,6 @@ def test_datart_json_list_format():
     assert res['image'] == 'https://img.datart.cz/washer.jpg'
 
 def test_datart_missing_json():
-    """Ensure no HTML scraping happens if JSON is missing."""
     html = """
     <html>
         <body>
@@ -133,7 +127,6 @@ def test_datart_missing_json():
 # ============================================================================
 
 def test_mironet_json_price_formatting():
-    """Mironet extractor appends ',-' to the price from JSON."""
     html = """
     <html>
         <body>
@@ -151,12 +144,10 @@ def test_mironet_json_price_formatting():
     </html>
     """
     res = extract_mironet(html, 'url')
-    # Specifická kontrola tvé logiky: price + ",-"
     assert res['price'] == '45000,-'
     assert res['availability'] == 'Předobjednávka'
 
 def test_mironet_missing_json():
-    """Ensure fallback to defaults if JSON is missing."""
     html = """
     <html>
         <body>
