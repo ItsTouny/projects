@@ -1,26 +1,171 @@
-"""Unit tests for extractors: alza, mall, datart.
+"""Unit tests for extractors: alza, datart, mironet.
 
-These tests use small HTML snippets to validate the parsing logic.
+These tests validate STRICTLY the JSON-LD parsing logic.
+Since HTML fallbacks were removed, missing JSON must result in default values (N/A).
 """
+
 from crawler.extractors.alza import extract_alza
-from crawler.extractors.mall import extract_mall
+from crawler.extractors.mironet import extract_mironet
 from crawler.extractors.datart import extract_datart
 
-def test_alza_basic():
-    html = "<html><head><title>Prod</title></head><body><h1>Name A</h1><span class='price-box__primary-price__value'>123 Kč</span></body></html>"
+# ============================================================================
+#                                   ALZA TESTS
+# ============================================================================
+
+def test_alza_json_ld_standard():
+    """Test standard extraction from JSON-LD."""
+    html = """
+    <html>
+        <body>
+            <h1>iPhone 15</h1>
+            <script type="application/ld+json">
+            {
+                "@context": "http://schema.org/",
+                "@type": "Product",
+                "name": "iPhone 15",
+                "image": "https://img.alza.cz/foto.jpg",
+                "offers": {
+                    "@type": "Offer",
+                    "price": "29990",
+                    "availability": "http://schema.org/InStock"
+                }
+            }
+            </script>
+        </body>
+    </html>
+    """
     res = extract_alza(html, 'https://alza.test/p')
-    assert res['name'] == 'Name A'
-    assert '123' in res['price']
-
-def test_mall_basic():
-    html = "<html><body><h1 class='product-detail__name'>MName</h1><span class='price__price'>1 234 Kč</span></body></html>"
-    res = extract_mall(html, 'https://mall.test/p')
-    assert res['name'] == 'MName'
-    assert '1 234' in res['price']
-
-def test_datart_basic():
-    html = "<html><head><meta property='og:image' content='https://img'></head><body><h1 class='product-title'>DName</h1><span class='price'>2 000 Kč</span><span class='availability__text'>Skladem</span></body></html>"
-    res = extract_datart(html, 'https://datart.test/p')
-    assert res['name'] == 'DName'
-    assert '2 000' in res['price']
+    assert res['name'] == 'iPhone 15'  # From H1
+    assert res['price'] == '29990,-'
     assert res['availability'] == 'Skladem'
+    assert res['image'] == 'https://img.alza.cz/foto.jpg'
+
+def test_alza_image_object_structure():
+    """Test specific Alza image structure (List of ImageObjects)."""
+    html = """
+    <html>
+        <body>
+            <h1>Samsung TV</h1>
+            <script type="application/ld+json">
+            {
+                "@type": "Product",
+                "image": [
+                    {
+                        "@type": "ImageObject",
+                        "url": "https://image.alza.cz/products/SAMO0269c5.jpg",
+                        "name": "Hlavní obrázek"
+                    }
+                ]
+            }
+            </script>
+        </body>
+    </html>
+    """
+    res = extract_alza(html, 'url')
+    # Musí vytáhnout URL zanořenou v objektu
+    assert res['image'] == 'https://image.alza.cz/products/SAMO0269c5.jpg'
+
+def test_alza_missing_json():
+    """Test that it returns N/A when JSON is missing (No HTML fallback)."""
+    html = """
+    <html>
+        <body>
+            <h1>Just Name</h1>
+            <span class="price-box__primary-price__value">100 Kč</span>
+            <span>Skladem</span>
+        </body>
+    </html>
+    """
+    res = extract_alza(html, 'url')
+    assert res['name'] == 'Just Name'
+    assert res['price'] == 'N/A'          # HTML is ignored
+    assert res['availability'] == 'Neznámá'
+    assert res['image'] == ''
+
+# ============================================================================
+#                                  DATART TESTS
+# ============================================================================
+
+def test_datart_json_list_format():
+    """Datart often wraps the Product object in a list."""
+    html = """
+    <html>
+        <body>
+            <h1>Datart Washer</h1>
+            <script type="application/ld+json">
+            [
+                { "@type": "BreadcrumbList" },
+                {
+                    "@type": "Product",
+                    "image": "https://img.datart.cz/washer.jpg",
+                    "offers": {
+                        "price": 12000,
+                        "availability": "http://schema.org/OutOfStock"
+                    }
+                }
+            ]
+            </script>
+        </body>
+    </html>
+    """
+    res = extract_datart(html, 'url')
+    assert res['price'] == '12000,-'
+    assert res['availability'] == 'Nedostupné'
+    assert res['image'] == 'https://img.datart.cz/washer.jpg'
+
+def test_datart_missing_json():
+    """Ensure no HTML scraping happens if JSON is missing."""
+    html = """
+    <html>
+        <body>
+            <h1>Datart HTML Only</h1>
+            <div class="price-box__price">500 Kč</div>
+        </div>
+    </html>
+    """
+    res = extract_datart(html, 'url')
+    assert res['name'] == 'Datart HTML Only'
+    assert res['price'] == 'N/A'
+    assert res['availability'] == 'Neznámá'
+
+# ============================================================================
+#                                 MIRONET TESTS
+# ============================================================================
+
+def test_mironet_json_price_formatting():
+    """Mironet extractor appends ',-' to the price from JSON."""
+    html = """
+    <html>
+        <body>
+            <h1>Mironet GPU</h1>
+            <script type="application/ld+json">
+            {
+                "@type": "Product",
+                "offers": {
+                    "price": "45000",
+                    "availability": "http://schema.org/PreOrder"
+                }
+            }
+            </script>
+        </body>
+    </html>
+    """
+    res = extract_mironet(html, 'url')
+    # Specifická kontrola tvé logiky: price + ",-"
+    assert res['price'] == '45000,-'
+    assert res['availability'] == 'Předobjednávka'
+
+def test_mironet_missing_json():
+    """Ensure fallback to defaults if JSON is missing."""
+    html = """
+    <html>
+        <body>
+            <h1>Mironet No JSON</h1>
+            <span class="product_dph">100 Kč</span>
+        </body>
+    </html>
+    """
+    res = extract_mironet(html, 'url')
+    assert res['name'] == 'Mironet No JSON'
+    assert res['price'] == 'N/A'
+    assert res['availability'] == 'Neznámá'
