@@ -3,25 +3,6 @@ from bs4 import BeautifulSoup
 
 
 def extract_alza(_html: str, url: str) -> dict:
-    """
-    Extracts product information (name, price, availability, image) from Alza.cz HTML.
-
-    This function prioritizes extracting structured data (JSON-LD) for reliability.
-    It handles specific Alza image object structures found in JSON-LD.
-
-    Args:
-        _html (str): The raw HTML content of the product page.
-        url (str): The URL of the product page.
-
-    Returns:
-        dict: A dictionary containing the extracted product details:
-            - url (str): The original product URL.
-            - name (str): The product name.
-            - price (str): The product price or 'N/A'.
-            - availability (str): Stock status (e.g., 'Skladem', 'Nedostupné').
-            - image (str): URL of the product image.
-            - store (str): Fixed string 'alza'.
-    """
     soup = BeautifulSoup(_html, "html.parser")
 
     name = "Unknown"
@@ -30,53 +11,74 @@ def extract_alza(_html: str, url: str) -> dict:
     image_url = ""
 
     h1_elem = soup.find("h1")
-    if h1_elem:
+    if h1_elem is not None:
         name = h1_elem.get_text(strip=True)
 
     json_scripts = soup.find_all("script", type="application/ld+json")
 
     for script in json_scripts:
         try:
-            data = json.loads(script.get_text())
+            script_text = script.get_text()
+            data = json.loads(script_text)
+
+            product_data = None
 
             if isinstance(data, list):
-                product_data = next((item for item in data if item.get("@type") == "Product"), None)
-            else:
-                product_data = data if data.get("@type") == "Product" else None
+                for item in data:
+                    if not isinstance(item, dict):
+                        continue
 
-            if product_data:
-                if "image" in product_data:
-                    img_data = product_data["image"]
+                    item_type = item.get("@type")
+                    if item_type == "Product":
+                        product_data = item
+                        break
 
-                    if isinstance(img_data, list) and len(img_data) > 0:
-                        first_item = img_data[0]
-                        if isinstance(first_item, dict):
-                            image_url = first_item.get("url", "")
-                        else:
-                            image_url = str(first_item)
-                    elif isinstance(img_data, dict):
-                        image_url = img_data.get("url", "")
-                    elif isinstance(img_data, str):
-                        image_url = img_data
+            elif isinstance(data, dict):
+                if data.get("@type") == "Product":
+                    product_data = data
 
-                if "offers" in product_data:
-                    offers = product_data["offers"]
-                    if isinstance(offers, list):
-                        offers = offers[0]
+            if product_data is not None:
+
+                image_field = product_data.get("image")
+
+                if isinstance(image_field, list) and len(image_field) > 0:
+                    first_item = image_field[0]
+
+                    if isinstance(first_item, dict):
+                        image_url = first_item.get("url", "")
+                    else:
+                        image_url = str(first_item)
+
+                elif isinstance(image_field, dict):
+                    image_url = image_field.get("url", "")
+
+                elif isinstance(image_field, str):
+                    image_url = image_field
+
+                offers = product_data.get("offers")
+
+                if isinstance(offers, list) and len(offers) > 0:
+                    offers = offers[0]
+
+                if isinstance(offers, dict):
 
                     if "price" in offers:
-                        price = str(offers["price"])+",-"
+                        price = str(offers["price"]) + ",-"
 
-                    avail_url = offers.get("availability", "")
-                    if "InStock" in avail_url:
+                    availability_url = offers.get("availability", "")
+
+                    if "InStock" in availability_url:
                         availability = "Skladem"
-                    elif "OutOfStock" in avail_url or "Discontinued" in avail_url:
+                    elif "OutOfStock" in availability_url:
                         availability = "Nedostupné"
-                    elif "PreOrder" in avail_url:
+                    elif "Discontinued" in availability_url:
+                        availability = "Nedostupné"
+                    elif "PreOrder" in availability_url:
                         availability = "Předobjednávka"
 
-                    break
-        except:
+                break
+
+        except Exception:
             continue
 
     return {

@@ -1,5 +1,5 @@
-"""Writer utilities for CSV/JSON/SQLite outputs."""
-import csv, os, json
+"""Writer utilities for CSV outputs."""
+import csv, os
 from typing import List, Dict
 
 def ensure_dir(path: str):
@@ -17,8 +17,3 @@ def write_csv(path: str, rows: List[Dict]):
         if write_header:
             writer.writeheader()
         writer.writerows(rows)
-
-def write_json(path: str, rows: List[Dict]):
-    ensure_dir(os.path.dirname(path) or ".")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(rows, f, ensure_ascii=False, indent=2)
