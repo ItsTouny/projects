@@ -26,7 +26,7 @@ A robust desktop application for warehouse and e-shop management, re-engineered 
 
 2. **Install dependencies:**
     ```bash
-    py -m pip install -r lib/requirements.txt
+    py -m pip install -r requirements.txt
     ```
 
 3. **Run the application:**
