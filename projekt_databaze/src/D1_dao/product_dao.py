@@ -1,4 +1,4 @@
-from projekt_databaze.src.models import Product
+from models import Product
 
 class ProductDAO:
     """

@@ -1,4 +1,4 @@
-from projekt_databaze.src.models import User
+from models import User
 
 
 class UserDAO:
