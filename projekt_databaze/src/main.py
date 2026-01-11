@@ -4,392 +4,222 @@ import json
 import sys
 import os
 
-# Přidání cesty k aktuální složce, aby Python našel naše moduly
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from database import Database
-from dao.product_dao import ProductDAO
-from dao.order_dao import OrderDAO
-from dao.report_dao import ReportDAO
+from models import User, Product
+from D1_dao.user_dao import UserDAO
+from D1_dao.product_dao import ProductDAO
+from D1_dao.order_dao import OrderDAO
+from D1_dao.report_dao import ReportDAO
 
 
 class EshopApp:
     """
-    Hlavní třída grafického rozhraní (GUI) aplikace.
-    Využívá knihovnu Tkinter a propojuje uživatele s vrstvou DAO.
+    Hlavní grafická aplikace (GUI) postavená na Tkinter.
+    Spojuje uživatelské rozhraní s datovou vrstvou (DAO).
     """
 
     def __init__(self, root):
         """
-        Inicializuje aplikaci, připojení k DB a grafické komponenty.
+        Inicializuje aplikaci, připojuje DB a spouští automatické přihlášení.
         """
         self.root = root
-        self.root.title("Skladový systém (D1 - DAO Pattern)")
-        self.root.geometry("1000x700")  # Zvětšeno okno, aby se tam vše vešlo
+        self.root.title("Skladový systém (Pure DAO Architecture)")
+        self.root.geometry("1000x700")
 
-        # 1. Připojení k databázi
         try:
             self.db = Database()
             self.db.connect()
 
-            # Inicializace DAO tříd
+            self.user_dao = UserDAO(self.db)
             self.product_dao = ProductDAO(self.db)
             self.order_dao = OrderDAO(self.db)
             self.report_dao = ReportDAO(self.db)
 
+            self.current_user = self.user_dao.get_by_id(1)
+            if not self.current_user:
+                self.current_user = User(1, "Admin (Fallback)", True)
+
+            self.init_gui()
+
         except Exception as e:
-            messagebox.showerror("Kritická chyba", f"Chyba při startu aplikace:\n{e}")
+            messagebox.showerror("Error", str(e))
             self.root.destroy()
-            return
 
-        # 2. Vytvoření záložek (Tabs)
-        self.notebook = ttk.Notebook(root)
-        self.notebook.pack(expand=True, fill='both')
-
-        # Vytvoření rámců pro jednotlivé záložky
-        self.tab_order = ttk.Frame(self.notebook)
-        self.tab_manage = ttk.Frame(self.notebook)  # <--- NOVÁ ZÁLOŽKA (CRUD)
-        self.tab_report = ttk.Frame(self.notebook)
-        self.tab_import = ttk.Frame(self.notebook)
-
-        # Přidání záložek do notebooku
-        self.notebook.add(self.tab_order, text='Nová Objednávka')
-        self.notebook.add(self.tab_manage, text='Správa Objednávek')
-        self.notebook.add(self.tab_report, text='Statistiky')
-        self.notebook.add(self.tab_import, text='Import')
-
-        # 3. Spuštění nastavení pro jednotlivé záložky
-        self.setup_order_ui()
-        self.setup_manage_ui()  # <--- Spuštění nové sekce
-        self.setup_report_ui()
-        self.setup_import_ui()
-
-    # =================================================================
-    # ZÁLOŽKA 1: NOVÁ OBJEDNÁVKA (Transakce)
-    # =================================================================
-    def setup_order_ui(self):
+    def init_gui(self):
         """
-        Vytvoří UI pro vytváření nových objednávek.
+        Vytvoří hlavní záložky aplikace.
         """
-        frame = tk.Frame(self.tab_order, padx=10, pady=10)
-        frame.pack(fill='both', expand=True)
+        self.root.title(f"Sklad - Přihlášen: {self.current_user.username}")
+        nb = ttk.Notebook(self.root)
+        nb.pack(expand=True, fill='both')
 
-        # Výběr produktu
-        lbl_prod = tk.Label(frame, text="Výběr produktu:")
-        lbl_prod.pack(anchor="w")
+        self.tab1 = ttk.Frame(nb)
+        nb.add(self.tab1, text='Nová Objednávka')
+        self.tab2 = ttk.Frame(nb)
+        nb.add(self.tab2, text='Správa')
+        self.tab3 = ttk.Frame(nb)
+        nb.add(self.tab3, text='Statistiky')
+        self.tab4 = ttk.Frame(nb)
+        nb.add(self.tab4, text='Import')
 
-        self.cb_products = ttk.Combobox(frame, state="readonly", width=50)
-        self.cb_products.pack(anchor="w", pady=5)
+        self.ui_order()
+        self.ui_manage()
+        self.ui_report()
+        self.ui_import()
 
-        # Načtení dat
+    def ui_order(self):
+        """
+        Vytvoří UI pro zadávání nových objednávek.
+        """
+        f = tk.Frame(self.tab1, padx=10, pady=10)
+        f.pack(fill='both', expand=True)
+
+        tk.Label(f, text="Produkt:").pack(anchor="w")
+        self.cb_prod = ttk.Combobox(f, state="readonly", width=50)
+        self.cb_prod.pack(anchor="w")
         self.reload_products()
 
-        # Množství
-        lbl_qty = tk.Label(frame, text="Množství:")
-        lbl_qty.pack(anchor="w")
+        tk.Label(f, text="Množství:").pack(anchor="w")
+        self.spin_qty = tk.Spinbox(f, from_=1, to=100)
+        self.spin_qty.pack(anchor="w")
 
-        self.spin_qty = tk.Spinbox(frame, from_=1, to=100, width=5)
-        self.spin_qty.pack(anchor="w", pady=5)
-
-        # Tlačítko přidat
-        btn_add = tk.Button(frame, text="Přidat do košíku", command=self.add_to_cart)
-        btn_add.pack(anchor="w", pady=10)
-
-        # Košík (Listbox)
-        lbl_cart = tk.Label(frame, text="Obsah košíku:")
-        lbl_cart.pack(anchor="w")
-
-        self.list_cart = tk.Listbox(frame, height=10)
-        self.list_cart.pack(fill='x', pady=5)
-
-        self.cart = []  # Seznam položek v paměti
-
-        # Tlačítko Odeslat
-        btn_send = tk.Button(frame, text="DOKONČIT OBJEDNÁVKU (Transakce)",
-                             bg="green", fg="white", command=self.submit_order)
-        btn_send.pack(fill='x', pady=20)
+        tk.Button(f, text="Přidat", command=self.add_cart).pack(anchor="w", pady=5)
+        self.lst_cart = tk.Listbox(f, height=10)
+        self.lst_cart.pack(fill='x')
+        self.cart = []
+        tk.Button(f, text="DOKONČIT", bg="green", fg="white", command=self.submit).pack(fill='x', pady=10)
 
     def reload_products(self):
         """
-        Načte produkty z DB do rozbalovacího seznamu.
+        Načte produkty z DAO a naplní Combobox.
         """
+        prods = self.product_dao.get_all_active()
+        self.map_prod = {str(p): p for p in prods}
+        self.cb_prod['values'] = list(self.map_prod.keys())
+
+    def add_cart(self):
+        """
+        Přidá položku do dočasného košíku v paměti.
+        """
+        txt = self.cb_prod.get()
+        if not txt: return
+        p = self.map_prod[txt]
+        q = int(self.spin_qty.get())
+        self.cart.append({'id': p.id, 'name': p.name, 'price': p.price, 'qty': q})
+        self.lst_cart.insert(tk.END, f"{p.name} x{q}")
+
+    def submit(self):
+        """
+        Odešle košík do OrderDAO k vytvoření transakce.
+        """
+        if not self.cart: return
         try:
-            products = self.product_dao.get_all_active()
-            self.products_map = {}
-            values = []
-
-            for p in products:
-                # Pozor: Ve VIEW se sloupec jmenuje product_name
-                label = f"{p['product_name']} ({p['price']} Kč)"
-                self.products_map[label] = p
-                values.append(label)
-
-            self.cb_products['values'] = values
-        except Exception as e:
-            messagebox.showerror("Chyba DB", str(e))
-
-    def add_to_cart(self):
-        """
-        Přidá vybranou položku do dočasného seznamu (košíku).
-        """
-        text = self.cb_products.get()
-        if text == "":
-            return
-
-        product_data = self.products_map[text]
-        qty = int(self.spin_qty.get())
-
-        item = {}
-        item['id'] = product_data['product_id']
-        item['name'] = product_data['product_name']
-        item['price'] = product_data['price']
-        item['qty'] = qty
-
-        self.cart.append(item)
-
-        total = item['price'] * qty
-        display = f"{item['name']} - {qty} ks (Celkem: {total} Kč)"
-        self.list_cart.insert(tk.END, display)
-
-    def submit_order(self):
-        """
-        Odešle košík do DAO pro vytvoření transakce.
-        """
-        if not self.cart:
-            messagebox.showwarning("Pozor", "Košík je prázdný!")
-            return
-
-        try:
-            # Pevně dané ID uživatele (simulace přihlášení)
-            user_id = 2
-            order_id = self.order_dao.create_order(user_id, self.cart)
-
-            messagebox.showinfo("Hotovo", f"Objednávka č. {order_id} byla uložena.")
-
-            # Reset formuláře
+            self.order_dao.create_order(self.current_user.id, self.cart)
+            messagebox.showinfo("OK", "Uloženo")
             self.cart = []
-            self.list_cart.delete(0, tk.END)
-
-            # Aktualizace ostatních záložek
-            self.show_report()
+            self.lst_cart.delete(0, tk.END)
             self.load_orders()
-
+            self.show_stats()
         except Exception as e:
-            messagebox.showerror("Chyba", f"Objednávka selhala:\n{e}")
+            messagebox.showerror("Err", str(e))
 
-    # =================================================================
-    # ZÁLOŽKA 2: SPRÁVA OBJEDNÁVEK (CRUD Operace)
-    # =================================================================
-    def setup_manage_ui(self):
+    def ui_manage(self):
         """
-        Vytvoří UI pro správu: Seznam objednávek, Detail, Mazání, Úprava stavu.
+        Vytvoří UI pro správu existujících objednávek.
         """
-        # A) Horní část - Seznam objednávek
-        frame_top = tk.LabelFrame(self.tab_manage, text="Seznam Objednávek")
-        frame_top.pack(fill='both', expand=True, padx=5, pady=5)
+        f = tk.Frame(self.tab2, padx=10)
+        f.pack(fill='both', expand=True)
+        cols = ("ID", "User", "Date", "Status")
+        self.tree = ttk.Treeview(f, columns=cols, show='headings')
+        for c in cols: self.tree.heading(c, text=c)
+        self.tree.pack(fill='both', expand=True)
 
-        cols = ("ID", "Zákazník", "Datum", "Stav")
-        self.tree_orders = ttk.Treeview(frame_top, columns=cols, show='headings', height=8)
-
-        for col in cols:
-            self.tree_orders.heading(col, text=col)
-            self.tree_orders.column(col, width=100)
-
-        self.tree_orders.pack(side=tk.LEFT, fill='both', expand=True)
-
-        # Scrollbar pro seznam
-        sb = tk.Scrollbar(frame_top, orient=tk.VERTICAL, command=self.tree_orders.yview)
-        sb.pack(side=tk.RIGHT, fill='y')
-        self.tree_orders.configure(yscrollcommand=sb.set)
-
-        # Událost: Po kliknutí na řádek načti detail
-        self.tree_orders.bind("<<TreeviewSelect>>", self.on_order_select)
-
-        # Ovládací tlačítka
-        frame_actions = tk.Frame(self.tab_manage)
-        frame_actions.pack(fill='x', padx=5, pady=5)
-
-        btn_refresh = tk.Button(frame_actions, text="Obnovit seznam", command=self.load_orders)
-        btn_refresh.pack(side=tk.LEFT, padx=5)
-
-        btn_ship = tk.Button(frame_actions, text="Nastavit 'Odesláno' (Update)", command=self.mark_as_shipped)
-        btn_ship.pack(side=tk.LEFT, padx=5)
-
-        btn_del = tk.Button(frame_actions, text="Smazat objednávku (Delete)", bg="#ffcccc", command=self.delete_order)
-        btn_del.pack(side=tk.RIGHT, padx=5)
-
-        # B) Dolní část - Detail položek
-        frame_bottom = tk.LabelFrame(self.tab_manage, text="Položky vybrané objednávky (Detail)")
-        frame_bottom.pack(fill='both', expand=True, padx=5, pady=5)
-
-        cols_items = ("Produkt", "Množství", "Cena/ks")
-        self.tree_items = ttk.Treeview(frame_bottom, columns=cols_items, show='headings', height=5)
-
-        for col in cols_items:
-            self.tree_items.heading(col, text=col)
-
-        self.tree_items.pack(fill='both', expand=True)
-
-        # Načíst data při startu
+        pnl = tk.Frame(f)
+        pnl.pack(fill='x', pady=5)
+        tk.Button(pnl, text="Refresh", command=self.load_orders).pack(side=tk.LEFT)
+        self.cb_st = ttk.Combobox(pnl, values=["paid", "shipped", "cancelled"], width=10)
+        self.cb_st.pack(side=tk.LEFT, padx=5)
+        self.cb_st.current(0)
+        tk.Button(pnl, text="Update Status", command=self.upd_status).pack(side=tk.LEFT)
+        tk.Button(pnl, text="Smazat", bg="#fcc", command=self.del_order).pack(side=tk.RIGHT)
         self.load_orders()
 
     def load_orders(self):
-        """Načte seznam všech objednávek do horní tabulky."""
-        for row in self.tree_orders.get_children():
-            self.tree_orders.delete(row)
+        """
+        Načte seznam objednávek z DB do tabulky.
+        """
+        for i in self.tree.get_children(): self.tree.delete(i)
+        for o in self.order_dao.get_all():
+            self.tree.insert("", tk.END, values=(o['id'], o['username'], o['created_at'], o['status']))
 
-        try:
-            orders = self.order_dao.get_all_orders()
-            for o in orders:
-                vals = (o['id'], o['username'], o['created_at'], o['status'])
-                self.tree_orders.insert("", tk.END, values=vals)
-        except Exception as e:
-            print(f"Chyba načítání objednávek: {e}")
-
-    def on_order_select(self, event):
-        """Po kliknutí na objednávku načte její položky do dolní tabulky."""
-        selected_item = self.tree_orders.selection()
-        if not selected_item:
-            return
-
-        # Získáme ID z vybraného řádku
-        item_data = self.tree_orders.item(selected_item)
-        order_id = item_data['values'][0]
-
-        # Vyčistit dolní tabulku
-        for row in self.tree_items.get_children():
-            self.tree_items.delete(row)
-
-        try:
-            items = self.order_dao.get_order_items(order_id)
-            for i in items:
-                self.tree_items.insert("", tk.END, values=(i['name'], i['quantity'], i['unit_price']))
-        except Exception as e:
-            print(f"Chyba detailu: {e}")
-
-    def mark_as_shipped(self):
-        """Změní stav vybrané objednávky (Update)."""
-        selected = self.tree_orders.selection()
-        if not selected:
-            messagebox.showwarning("Pozor", "Vyberte objednávku.")
-            return
-
-        order_id = self.tree_orders.item(selected)['values'][0]
-
-        try:
-            self.order_dao.update_status(order_id, 'shipped')
-            messagebox.showinfo("Hotovo", "Stav objednávky byl změněn.")
+    def upd_status(self):
+        """
+        Změní stav vybrané objednávky.
+        """
+        sel = self.tree.selection()
+        if sel:
+            oid = self.tree.item(sel)['values'][0]
+            self.order_dao.update_status(oid, self.cb_st.get())
             self.load_orders()
-        except Exception as e:
-            messagebox.showerror("Chyba", str(e))
 
-    def delete_order(self):
-        """Smaže vybranou objednávku a její položky (Delete)."""
-        selected = self.tree_orders.selection()
-        if not selected:
-            messagebox.showwarning("Pozor", "Vyberte objednávku.")
-            return
-
-        if not messagebox.askyesno("Smazat", "Opravdu smazat tuto objednávku?"):
-            return
-
-        order_id = self.tree_orders.item(selected)['values'][0]
-
-        try:
-            self.order_dao.delete_order(order_id)
-            messagebox.showinfo("Hotovo", "Objednávka smazána.")
+    def del_order(self):
+        """
+        Smaže vybranou objednávku.
+        """
+        sel = self.tree.selection()
+        if sel:
+            oid = self.tree.item(sel)['values'][0]
+            self.order_dao.delete(oid)
             self.load_orders()
-            # Vymazat i detail, protože objednávka už neexistuje
-            for row in self.tree_items.get_children():
-                self.tree_items.delete(row)
-        except Exception as e:
-            messagebox.showerror("Chyba", str(e))
+            self.show_stats()
 
-    # =================================================================
-    # ZÁLOŽKA 3: STATISTIKY (Reporty)
-    # =================================================================
-    def setup_report_ui(self):
+    def ui_report(self):
         """
-        Vytvoří UI pro zobrazení agregovaných statistik.
+        Vytvoří UI pro zobrazení statistik.
         """
-        frame = tk.Frame(self.tab_report, padx=10, pady=10)
-        frame.pack(fill='both', expand=True)
+        f = tk.Frame(self.tab3)
+        f.pack(fill='both')
+        tk.Button(f, text="Refresh", command=self.show_stats).pack()
+        self.tree_rep = ttk.Treeview(f, columns=("Kat", "Ks", "Trzba"), show='headings')
+        for c in ("Kat", "Ks", "Trzba"): self.tree_rep.heading(c, text=c)
+        self.tree_rep.pack(fill='both')
 
-        btn = tk.Button(frame, text="Aktualizovat data", command=self.show_report)
-        btn.pack(anchor="w", pady=5)
-
-        cols = ("Kategorie", "Prodané kusy", "Tržba")
-        self.tree = ttk.Treeview(frame, columns=cols, show='headings')
-
-        self.tree.heading("Kategorie", text="Kategorie")
-        self.tree.heading("Prodané kusy", text="Prodané kusy")
-        self.tree.heading("Tržba", text="Tržba (Kč)")
-
-        self.tree.pack(fill='both', expand=True)
-
-    def show_report(self):
+    def show_stats(self):
         """
-        Načte data z VIEW v databázi a zobrazí je.
+        Zobrazí statistiky prodejů načtené z ReportDAO.
         """
-        for item in self.tree.get_children():
-            self.tree.delete(item)
+        for i in self.tree_rep.get_children(): self.tree_rep.delete(i)
+        for r in self.report_dao.get_sales_stats():
+            self.tree_rep.insert("", tk.END, values=(r['category_name'], r['items_sold'], r['total_revenue']))
 
-        try:
-            data = self.report_dao.get_stats()
-            for row in data:
-                vals = (row['category_name'], row['items_sold'], row['total_revenue'])
-                self.tree.insert("", tk.END, values=vals)
-        except Exception as e:
-            print(f"Chyba reportu: {e}")
-
-    # =================================================================
-    # ZÁLOŽKA 4: IMPORT DAT
-    # =================================================================
-    def setup_import_ui(self):
+    def ui_import(self):
         """
-        Vytvoří UI pro nahrávání JSON souborů.
+        Vytvoří UI pro import JSON souborů.
         """
-        frame = tk.Frame(self.tab_import, padx=20, pady=20)
-        frame.pack(fill='both', expand=True)
+        f = tk.Frame(self.tab4)
+        f.pack(fill='both')
+        tk.Button(f, text="Import JSON", command=self.do_import).pack(pady=20)
 
-        lbl = tk.Label(frame, text="Import produktů z JSON", font="Arial 14")
-        lbl.pack(pady=10)
-
-        btn = tk.Button(frame, text="Vybrat soubor...", command=self.run_import, width=20, height=2)
-        btn.pack()
-
-    def run_import(self):
+    def do_import(self):
         """
-        Spustí import produktů ze souboru.
+        Provede import produktů z vybraného souboru.
         """
-        file_path = filedialog.askopenfilename(filetypes=[("JSON", "*.json")])
-        if not file_path:
-            return
-
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data_list = json.load(f)
-
-            count = 0
-
-            for item in data_list:
-                if 'name' not in item or 'price' not in item:
-                    continue
-
-                name = item['name']
-                price = item['price']
-                cat_id = item.get('category_id', 1)
-
-                self.product_dao.import_product(name, price, cat_id)
-                count += 1
-
-            messagebox.showinfo("Info", f"Importováno {count} produktů.")
-            self.reload_products()
-
-        except ValueError:
-            messagebox.showerror("Chyba", "Soubor není platný JSON.")
-        except Exception as e:
-            messagebox.showerror("Chyba importu", str(e))
+        fn = filedialog.askopenfilename()
+        if fn:
+            try:
+                with open(fn) as f:
+                    data = json.load(f)
+                c = 0
+                for i in data:
+                    if 'name' in i and 'price' in i:
+                        self.product_dao.create_product(i['name'], i['price'])
+                        c += 1
+                messagebox.showinfo("OK", f"Importováno {c}")
+                self.reload_products()
+            except Exception as e:
+                messagebox.showerror("Err", str(e))
 
 
 if __name__ == "__main__":

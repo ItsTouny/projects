@@ -5,65 +5,56 @@ import os
 
 class Database:
     """
-    Třída zajišťující připojení k databázi MySQL.
-    Načítá konfigurační údaje ze souboru config.json.
+    Třída zajišťující správu připojení k databázi MySQL.
+    Načítá konfiguraci a poskytuje metody pro získání spojení.
     """
 
     def __init__(self):
         """
-        Inicializuje instanci databáze a načte konfiguraci.
+        Inicializuje instanci a načte konfiguraci.
         """
         self.connection = None
         self.config = self._load_config()
 
     def _load_config(self):
         """
-        Načte nastavení databáze ze souboru config/config.json.
-
-        Returns:
-            dict: Slovník s konfiguračními daty.
-
-        Raises:
-            FileNotFoundError: Pokud soubor config.json neexistuje.
+        Načte přihlašovací údaje ze souboru config.json.
         """
         current_dir = os.path.dirname(__file__)
         config_path = os.path.join(current_dir, '..', 'config', 'config.json')
-
         if not os.path.exists(config_path):
             raise FileNotFoundError("Chyba: Konfigurační soubor config.json nebyl nalezen.")
-
         with open(config_path, 'r') as f:
-            data = json.load(f)
-            return data
+            return json.load(f)
 
     def connect(self):
         """
-        Vytvoří nové připojení k databázi pomocí údajů z konfigurace.
-
-        Raises:
-            ConnectionError: Pokud se připojení nezdaří.
+        Vytvoří nové připojení k databázi s nastavením autocommit.
         """
-        try:
-            db_settings = self.config['db']
-            self.connection = mysql.connector.connect(
-                host=db_settings['host'],
-                user=db_settings['user'],
-                password=db_settings['password'],
-                database=db_settings['database']
-            )
-        except mysql.connector.Error as err:
-            raise ConnectionError(f"Chyba připojení k databázi: {err}")
+        if self.connection:
+            try:
+                self.connection.close()
+            except:
+                pass
+
+        cfg = self.config['db']
+        self.connection = mysql.connector.connect(
+            host=cfg['host'],
+            user=cfg['user'],
+            password=cfg['password'],
+            database=cfg['database'],
+            autocommit=True
+        )
 
     def get_conn(self):
         """
-        Vrátí aktivní připojení k databázi. Pokud neexistuje, vytvoří nové.
-
-        Returns:
-            mysql.connector.connection.MySQLConnection: Objekt připojení.
+        Vrátí aktivní připojení. Pokud spadlo, pokusí se ho obnovit.
         """
         if self.connection is None:
             self.connect()
         elif not self.connection.is_connected():
-            self.connect()
-
+            try:
+                self.connection.reconnect(attempts=3, delay=0)
+            except:
+                self.connect()
         return self.connection
